@@ -1,12 +1,3 @@
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <termios.h>
-#include <unistd.h>
-#include <strings.h>
-#include <string.h>
 #include "DataLinkLayer.h"
 #include "utils.h"
 
@@ -183,7 +174,7 @@ int llopen(int fd, int type){
 }
 
 int llwrite(int fd, const unsigned char* buffer, int length){
-    int transfer = 1;
+    int transfer = TRUE;
     int tries = 0;
 
     unsigned char* packet;
@@ -220,7 +211,7 @@ int llwrite(int fd, const unsigned char* buffer, int length){
             	printf("llwrite: received RR command\n");
             	control = !control;
         		  //stopalarm
-				      transfer = 0;
+				      transfer = FALSE;
         	}else if((verifyResponseCommand(rcv_response, REJ0) && control) || (verifyResponseCommand(rcv_response, REJ1) && !control )){
             	printf("llwrite: received REJ command \n");
 				      //stopAlarm();
@@ -241,7 +232,7 @@ int llread(int fd, unsigned char* buffer){
   unsigned char* packet = malloc(MESSAGE_DATA_MAX_SIZE);
   unsigned int packetSize = MESSAGE_DATA_MAX_SIZE;
 
-	int received = 0;
+	int received = FALSE;
 	while(!received){
 		if(receivePacket(fd, packet, packetSize)){
 			printf("llread: received a packet\n");
@@ -264,7 +255,7 @@ int llread(int fd, unsigned char* buffer){
 					         else
 						          write(fd,RR0,sizeof(RR0));
 
-					         received = 1;
+					         received = TRUE;
 				     } else {
 					          return 0;
 				     }
@@ -389,7 +380,7 @@ unsigned char * encapsulatePacket(const unsigned char * buffer, int length){
 
 	memcpy(&packet[4], buffer, length);
 
-	unsigned char BCC2 = getBCC(buffer, length);
+  unsigned char BCC2 = getBCC(buffer, length);
 
 	packet[4 + length] = BCC2;
 	packet[5 + length] = FLAG;
@@ -422,37 +413,38 @@ unsigned int stuffPacket(unsigned char** packet, int length){
 }
 
 int receivePacket(int fd, unsigned char * buffer, int buffSize){
-	ConnectionState state = START;
-    volatile int received = 0;
-	int cReceived;
+	State state = START;
+  volatile int received = FALSE;
+	int cRcv;
 	int length = 0;
 
-    while(!received){
-        unsigned char ch;
+  while(!received){
+    unsigned char ch;
 
-        if(state != STOP){
-        	cReceived = read(fd, &ch, 1);
-        	if(!cReceived)
-        		return cReceived;
-        }
+    if(state != STOP){
+      cRcv = read(fd, &ch, 1);
+      if(!cRcv) //read returned 0
+        return cRcv;
+    }
 
-        ch = stateMachine(&state,ch);
+    ch = stateMachineControl(&state,ch);
 
-        if(state == DATA_RCV){
-        	if (length % buffSize == 0) {
+    if(state == DATA_RCV){
+      if (length % buffSize == 0) {
 				int factor = length / buffSize + 1;
 				buffer = (unsigned char*) realloc(buffer, factor * buffSize);
 			}
-        	state = BCC_OK;
-        }
 
-        buffer[length++] = ch;
-
-        if(state == STOP){
-            buffer[length] = 0;
-        	received = 1;
-        }
+      state = BCC_OK;
     }
+
+    buffer[length++] = ch;
+
+    if(state == STOP){
+      buffer[length] = 0;
+      received = TRUE;
+    }
+  }
 
 	return received;
 }
@@ -480,9 +472,9 @@ unsigned int verifyResponseCommand(unsigned char * buffer, const unsigned char *
 	unsigned char bcc1 = buffer[3];
 
 	if(bcc1 == (a^c) && c == command[2]){
-		return 1;
+		return TRUE;
 	} else
-		return 0;
+		return FALSE;
 }
 
 int verifyDataReceived(unsigned char * buffer, int size){
@@ -491,15 +483,14 @@ int verifyDataReceived(unsigned char * buffer, int size){
 	unsigned char bcc1 = buffer[3];
 
 	if(bcc1 == (a^c) && (c == C0 || c == C1)){
+		unsigned char BCC2Rcv = getBCC(buffer, size); //bcc2 received
+		unsigned char bcc2 = buffer[size - 1];
 
-			unsigned char BCC2rcvd = getBCC(buffer, size);
-			unsigned char bcc2 = buffer[size - 1];
-
-			if(bcc2 != BCC2rcvd)
-				return 0;
+		if(bcc2 != BCC2rcvd)
+			return FALSE;
 	} else if(c != C0 && c != C1){
-		return 0;
+		return FALSE;
 	}
 
-	return 1;
+	return TRUE;
 }

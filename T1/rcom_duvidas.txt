@@ -1,0 +1,11 @@
+alarme
+llclose   continue ou break? um tem de sair
+0x07 ou 0x05
+pra k servem os C0 e C1 : 0x00 e 0x40
+
+flag e count do alarm ???
+
+pk é k o data packet size é 6*sizeof(char), podia ser 5 * sizeof(char) ?
+
+
+pra k serve o control?

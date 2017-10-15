@@ -1,2 +1,3 @@
 # feup-rcom
-pure hell
+
+Transfering files between serial ports

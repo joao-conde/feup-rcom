@@ -9,3 +9,5 @@ pk é k o data packet size é 6*sizeof(char), podia ser 5 * sizeof(char) ?
 
 
 pra k serve o control?
+
+qd se usa volatile?

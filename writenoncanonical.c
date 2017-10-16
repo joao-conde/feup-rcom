@@ -7,7 +7,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <flags.h>
+#include <unistd.h>
+#include "flags.h"
 
 #define BAUDRATE B38400
 #define MODEMDEVICE "/dev/ttyS1"
@@ -110,9 +111,6 @@ int main(int argc, char** argv)
     o indicado no gui�o
   */
 
-
-
-
 	sleep(1);
 
     if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
@@ -133,17 +131,17 @@ int frread(int fd, unsigned char* buf, int maxlen){
   while(1){
     if((ch = read(fd, buf + n, 1)) <= 0)
       return ch; //error...
-    if(n==0 && buf[n] != FRFLAG)
+    if(n==0 && buf[n] != FLAG)
       continue;
-    if(n == 1 && buf[n] == FRFLAG)
+    if(n == 1 && buf[n] == FLAG)
       continue;
     n++;
-    if(buf[n-1] != FRFLAG && n == maxlen){
+    if(buf[n-1] != FLAG && n == maxlen){
       n = 0;
       continue;
     }
 
-    if(buf[n-1] == FRFLAG && n > 2){
+    if(buf[n-1] == FLAG && n > 2){
       processframe(buf,n);
       return n;
     }

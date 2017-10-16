@@ -1,5 +1,5 @@
 #include "DataLinkLayer.h"
-#include "utils.h"
+#include "consts.h"
 
 struct termios oldtio,newtio;
 

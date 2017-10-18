@@ -1,3 +1,6 @@
+#ifndef UTILS_H_
+#define UTILS_H_
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,3 +26,5 @@ int getFileSize(FILE* file) {
 	// returning size
 	return size;
 }
+
+#endif

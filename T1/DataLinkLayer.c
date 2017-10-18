@@ -1,9 +1,17 @@
 #include "DataLinkLayer.h"
-#include "consts.h"
+
 
 struct termios oldtio,newtio;
 
 int flag=0, count=0;
+
+const unsigned char SET[] = {FLAG, A, C_SET, A^C_SET,FLAG};
+const unsigned char UA[] = {FLAG, A, C_UA, A^C_UA, FLAG};
+const unsigned char DISC[] = {FLAG, A, C_DISC, A^C_DISC, FLAG};
+const unsigned char RR0[] = {FLAG, A, C_RR0, A^C_RR0, FLAG};
+const unsigned char RR1[] = {FLAG, A, C_RR1, A^C_RR1, FLAG};
+const unsigned char REJ0[] = {FLAG, A, C_REJ0, A^C_REJ0, FLAG};
+const unsigned char REJ1[] = {FLAG, A, C_REJ1, A^C_REJ1, FLAG};
 
 volatile static int control = 0;
 
@@ -58,11 +66,11 @@ int stateMachineControl(State *state, char ch){
 
     case BCC_OK:
       if(ch == FLAG){			//succeeded receiving command
-        control_field = ch;
+        ret = ch;
         *state = STOP;
       }
       else if(ch != FLAG){ 	//succeeded receiving data
-        control_field = ch;
+        ret = ch;
         *state = DATA_RCV;
       }
       break;
@@ -80,7 +88,7 @@ int initiateConnection(const char * path){
 
   int fd = open(path, O_RDWR | O_NOCTTY);
 
-  if (fd <0) {perror(argv[1]); exit(-1); }
+  if (fd <0) {printf("ERROR with path"); exit(-1); }
 
     if ( tcgetattr(fd,&oldtio) == -1) { /* save current port settings */
       perror("tcgetattr");
@@ -147,7 +155,7 @@ int llopen(int fd, int type){
     while(tries < NUM_TRIES) {
      		for(i=0; i < sizeof(SET); i++){			// reads SET frame sent by the transmitter
     			read(fd, &ch, 1);
-    			ret = stateMachine(&state, ch);
+    			ret = stateMachineControl(&state, ch);
     		}
 
     		if(state == STOP && ret == C_SET){
@@ -336,7 +344,7 @@ int llclose (int fd, int type){
 				  cf = ret;
 		   }
 
-		   if(state == STOP && control_field == C_UA){
+		   if(state == STOP && ret == C_UA){
 			   printf("UA received succesfully.\n");
 		   }
 
@@ -483,10 +491,10 @@ int verifyDataReceived(unsigned char * buffer, int size){
 	unsigned char bcc1 = buffer[3];
 
 	if(bcc1 == (a^c) && (c == C0 || c == C1)){
-		unsigned char BCC2Rcv = getBCC(buffer, size); //bcc2 received
+		unsigned char BCC2Rcvd = getBCC(buffer, size); //bcc2 received
 		unsigned char bcc2 = buffer[size - 1];
 
-		if(bcc2 != BCC2rcvd)
+		if(bcc2 != BCC2Rcvd)
 			return FALSE;
 	} else if(c != C0 && c != C1){
 		return FALSE;

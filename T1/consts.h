@@ -1,3 +1,6 @@
+#ifndef CONSTS_H_
+#define CONSTS_H_
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -25,7 +28,7 @@
 
 #define NUM_TRIES 3 //max tries to transmit
 
-const unsigned int MESSAGE_DATA_MAX_SIZE = 512;
+#define MESSAGE_DATA_MAX_SIZE 512
 
 #define CTRL_PKT_SIZE	5
 #define DATA_PACKET_SIZE 	6*sizeof(char)
@@ -44,22 +47,18 @@ const unsigned int MESSAGE_DATA_MAX_SIZE = 512;
 #define ESCAPE 0x7D
 
 
-const unsigned char SET[] = {FLAG, A, C_SET, A^C_SET,FLAG};
-const unsigned char UA[] = {FLAG, A, C_UA, A^C_UA, FLAG};
-const unsigned char DISC[] = {FLAG, A, C_DISC, A^C_DISC, FLAG};
-const unsigned char RR0[] = {FLAG, A, C_RR0, A^C_RR0, FLAG};
-const unsigned char RR1[] = {FLAG, A, C_RR1, A^C_RR1, FLAG};
-const unsigned char REJ0[] = {FLAG, A, C_REJ0, A^C_REJ0, FLAG};
-const unsigned char REJ1[] = {FLAG, A, C_REJ1, A^C_REJ1, FLAG};
+
 
 typedef enum { START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, DATA_RCV, STOP } State;
 
 //Macros used in ApplicationLayer
 
 #define DATA	1
-#define START   2
+#define STRT   2
 #define END     3
 #define T_FILE_SIZE 0
 #define T_FILE_NAME 1
 
 #define MAX_SIZE 256
+
+#endif

@@ -3,6 +3,7 @@
 #include <string.h>
 #include "ApplicationLayer.h"
 
+
 int printUsage(){
     printf("Usage:<port> <send = 0 |receive = 1>  <filename>\n");
     printf("     \tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");

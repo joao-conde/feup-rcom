@@ -125,54 +125,55 @@ int llopen(int fd, int type){
 	State state = START;
 	int i = 0, tries = 0, ret = -1;
 	unsigned char ch;
-
+  int c_correct = FALSE;
 
   if(type == TRANSMITTER){
     while(tries < NUM_TRIES) {
-    		if(write(fd,SET,sizeof(SET))){		// sends SET frame
-    			sleep(1);
+    		if(write(fd,SET,sizeof(SET)) <= 0){		// sends SET frame
+    			alarm(3);
+          //sleep(1);
     			tries++;
-    		}else
-				printf("ERROR writing SET");
+          continue;
+    		}
 
     		for(i=0; i < sizeof(UA); i++){				// receives UA frame sent by the receiver
     			read(fd, &ch, 1);
     			ret = stateMachineControl(&state, ch);
+          if((state == BCC_OK) && (ret == (A ^ C_UA)))
+            c_correct = TRUE;
     		}
 
-    		if(state == STOP){
+    		if((state == STOP) && c_correct) {
     			printf("UA received successfully.\n");	// reading was successful and connection was established
     			break;
-    		} 
+    		}
     	}
-
 
     	if(tries == NUM_TRIES)						// made the max number of tries
     		return -1;
 
   }else if(type == RECEIVER){
-    while(TRUE) {
-     		for(i=0; i < sizeof(SET); i++){			// reads SET frame sent by the transmitter
-    			read(fd, &ch, 1);
-    			ret = stateMachineControl(&state, ch);
+   	while(TRUE) {
+		unsigned char buf[CTRL_PKT_SIZE];
+    		read(fd, &buf, CTRL_PKT_SIZE);
+
+     		for(i=0; i < CTRL_PKT_SIZE; i++){			// reads SET frame sent by the transmitter
+    			ret = stateMachineControl(&state, buf[i]);
+          if((state == BCC_OK) && (ret == (A ^ C_SET)))
+            c_correct = TRUE;
     		}
 
-    		if(state == STOP && ret == C_SET){
+    		if((state == STOP) && c_correct) {
     			printf("SET received succesfully\n");
     			break;
-    		} 
+    		}
     	}
-
-    	
-
 
     	if(write(fd,UA,sizeof(UA)) < 0){  //sends UA frame
     		printf("Error writing UA.\n");
     		return -1;
     	} else
           printf("UA sent successfully.\n");
-
-
     }
 
     return fd;
@@ -189,28 +190,30 @@ int llwrite(int fd, const unsigned char* buffer, int length){
     unsigned int rcv_response_size = MESSAGE_DATA_MAX_SIZE;
 
     while(transfer){
-        if(tries == 0){
-            if(tries >= NUM_TRIES){
-                printf("llwrite: Message not sent.\n");
-                return 0;
-            }
 
-            packet = encapsulatePacket(buffer, length);
-            packetSize = stuffPacket(&packet, DATA_PACKET_SIZE + length);
-
-			for(unsigned int i = 0; i< sizeof(packet);i++){
-				printf("BUFFER[%d] = %x\n", i, packet[i]);
-			}
-
-            write(fd, packet, packetSize); //send Packet
-			sleep(100);
-            tries++;
-            if(tries == 1){
-                //setalarm
-            	printf("llwrite: packet sent\n");
-            }
+        if(tries >= NUM_TRIES){
+            printf("llwrite: Message not sent.\n");
+            return 0;
         }
 
+        packet = encapsulatePacket(buffer, length);
+        packetSize = stuffPacket(&packet, DATA_PACKET_SIZE + length);
+
+        int i;
+        for(i = 0; i < packetSize; i++ ){
+          printf("%x ", packet[i]);
+        }
+
+        printf("\nPACKET SIZE %d\n", packetSize);
+        printf("PACKET SIZEOF %d\n", sizeof(packet));
+
+        if(write(fd, packet, packetSize) <= 0){ //send Packet
+          alarm(3);
+          tries++;
+          continue;
+        }else{
+          printf("llwrite: packet sent\n");
+        }
 
         if(receivePacket(fd, rcv_response, rcv_response_size)){
         	printf("llwrite: packet received\n");
@@ -247,7 +250,12 @@ int llread(int fd, unsigned char* buffer){
 	while(!received){
 		if(receivePacket(fd, packet, packetSize)){
 			printf("llread: received a packet\n");
-
+/*
+      int i = 0;
+			for(i = 0; i < sizeof(packet) ; i++){
+				printf("PACKET %x\n", packet[i]);
+			}
+*/
 			packetSize = destuffPacket(&packet, packetSize);
 			printf("llread: destuffed packet\n");
 
@@ -274,7 +282,7 @@ int llread(int fd, unsigned char* buffer){
 		 }
 	 }
 
-	 //stopalarm
+
 
 	 return 1;
 }
@@ -407,7 +415,7 @@ unsigned int stuffPacket(unsigned char** packet, int length){
 		if ((*packet)[i] == FLAG || (*packet)[i] == ESCAPE)
 			newPacketSize++;
 
-	*packet = (unsigned char*) realloc(*packet, newPacketSize);
+	*packet = realloc(*packet, newPacketSize);
 
 	for (i = 1; i < length - 1; i++) {
 		if ((*packet)[i] == FLAG || (*packet)[i] == ESCAPE) {
@@ -423,36 +431,39 @@ unsigned int stuffPacket(unsigned char** packet, int length){
 	return newPacketSize;
 }
 
-int receivePacket(int fd, unsigned char * buffer, int buffSize){
+int receivePacket(int fd, unsigned char * packet, int buffSize){
 	State state = START;
   volatile int received = FALSE;
 	int cRcv;
 	int length = 0;
 
-  while(!received){
-    unsigned char ch;
+  unsigned char buf[buffSize];
 
-    if(state != STOP){
-      cRcv = read(fd, &ch, 1);
-      
-    }
-printf("CHAR %x\n", ch);
+	read(fd, &buf, sizeof(buf));
+
+  while(!received){
+    if(i >= buffSize)
+      break;
+    unsigned char ch = buf[i];
+    i++;
+
+  printf("CHAR %x\n", ch);
 	printf("STATE %d\n", state);
     ch = stateMachineControl(&state,ch);
 	printf("STATE %d\n", state);
     if(state == DATA_RCV){
       if (length % buffSize == 0) {
 				int factor = length / buffSize + 1;
-				buffer = (unsigned char*) realloc(buffer, factor * buffSize);
+				packet = (unsigned char*) realloc(packet, factor * buffSize);
 			}
 
       state = BCC_OK;
     }
 
-    buffer[length++] = ch;
-
+    packet[length] = ch;
+    length++;
     if(state == STOP){
-      buffer[length] = 0;
+      //packet[length] = 0;
       received = TRUE;
     }
   }

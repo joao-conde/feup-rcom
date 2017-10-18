@@ -36,7 +36,7 @@ int sendFile(const char * path, char *filename){
     //snprintf redirects the result of printf to a variable
 
 
-    if(!sendControlPackage(fd, START, fileSizeBuf, filename))  //send Start control package
+    if(!sendControlPackage(fd, STRT, fileSizeBuf, filename))  //send Start control package
     {
     	printf("Couldn't send Control Packet.\n");
         return 0;
@@ -73,7 +73,7 @@ int sendFile(const char * path, char *filename){
 		return 0;
 	}
 
-	/* END */
+	//end of sending file
 
 	if (!sendControlPackage(fd, END, "0", ""))
     {
@@ -111,7 +111,7 @@ int sendControlPackage(int fd, const int C, char* fileSize, char* fileName){
 		controlPackage[pos++] = fileName[i];
 
 
-    // Envio do pacote de controle
+    // Envio do pacote de controlo
 	if (!llwrite(fd,controlPackage, packageSize))
         {
             printf("Nao foi possivel gravar a camada de ligacao ao enviar pacote de controle. \n\n");
@@ -224,8 +224,7 @@ int receiveFile(const char * path){
 }
 
 int receiveControlPackage(int fd, int* controlPackageType, int* fileLength, char** fileName){
-	// receive control package
-	//TODO alterar esta cena
+
 	unsigned char * package = malloc(MAX_SIZE);
 	unsigned int totalSize = llread(fd, package);
 	if (totalSize == 0) {

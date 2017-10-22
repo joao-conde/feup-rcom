@@ -1,0 +1,17 @@
+datalink
+
+	controlfield global???
+	llopen variaveis transmitter e receiver fora?
+	resolver realloc
+
+	llwrite confirmar os packetSize
+	llwrite if(... <=0) ???
+
+	o que é o control???
+
+constantes
+
+o erro pode estar:
+			datalink -> receivePacket: factor
+			appLayer -> receiveDataPacket: 1 e 2, n devia ser 2 e 3?
+			appLayer -> sendDataPacket: cena de >>8 

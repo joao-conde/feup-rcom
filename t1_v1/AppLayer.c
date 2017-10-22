@@ -116,21 +116,21 @@ int sendFile(const char* path, int file_fd, char *file_name) {
 
 	//SEND START PACKET
 	if (sendControlPacket(fd, file_size, file_name, START) < 0){
-		printf("Didn't send START packet :(\n");
+		printf("APPLAYER: Didn't send START packet :(\n");
 		return -1;
-	} else printf("Sent START packet.\n");
+	} else printf("APPLAYER: Sent START packet.\n");
 
 	//SEND DATA PACKET
 	if (sendDataPacket(file_fd, fd) < 0){
-		printf("Didn't send DATA packet :(\n");
+		printf("APPLAYER: Didn't send DATA packet :(\n");
 		return -1;
-	} else printf("Sent DATA packet.\n");
+	} else printf("APPLAYER: Sent DATA packet.\n");
 
 	//SEND END PACKET
 	if (sendControlPacket(fd, file_size, file_name, END) < 0){
-		printf("Didn't send END packet :(\n");
+		printf("APPLAYER: Didn't send END packet :(\n");
 		return -1;
-	} else printf("Sent END packet.\n");
+	} else printf("APPLAYER: Sent END packet.\n");
 
 	if(llclose(fd, TRANSMITTER) < 0)
 		printf("APPLAYER: llclose failure :(\n");
@@ -172,16 +172,16 @@ int receiveControlPacket(unsigned char * buffer, int control_field, unsigned int
 				*file_size = tmp;
 				pos = pos + length;
 			} else{
-				printf("Control packet is corrupted.\n");
+				printf("APPLAYER: Control packet is corrupted.\n");
 				return -1;
 			}
 		}
 
 	} else if(buffer[0] == END) {
-		printf("Received END control packet.\n");
+		printf("APPLAYER: Received END control packet.\n");
 
 	} else {
-		puts("Critical Error. Impossible state reached.");
+		printf("APPLAYER: Critical Error. Impossible state reached.");
 		return -1;
 	}
 
@@ -195,7 +195,7 @@ int receiveDataPacket(unsigned char* buffer, int file_fd) {
 	int size = buffer[1]*256 + buffer[2];
 
 	if (write(file_fd, buffer+3, size) < 0){
-		printf("Error writing file part.\n");
+		printf("APPLAYER: Error writing file part.\n");
 		return -1;
 	}
 
@@ -220,44 +220,46 @@ int receiveFile(const char* path){
 		unsigned char buffer[MAX_DATA_SIZE];
 
 		if (llread(fd, buffer) < 0)
-			printf("llread failure :(\n");
-		else printf("llread success.\n");
+			printf("APPLAYER: llread failure :(\n");
+		else {
+			printf("APPLAYER: llread success.\n");
 
-		switch(buffer[0]){
-			case 1:
-				//RECEIVE DATA PACKET
+			switch(buffer[0]){
+				case 1:
+					//RECEIVE DATA PACKET
 
-				if (receiveDataPacket(&buffer[1], file_fd) < 0){
-					printf("Didn't receive DATA packet :(\n");
-					return -1;
-				} else printf("Received DATA packet.\n");
+					if (receiveDataPacket(&buffer[1], file_fd) < 0){
+						printf("APPLAYER: Didn't receive DATA packet :(\n");
+						return -1;
+					} else printf("APPLAYER: Received DATA packet.\n");
 
-				break;
+					break;
 
-			case 2:
-				//RECEIVE START PACKET
+				case 2:
+							//RECEIVE START PACKET
 
-				if (receiveControlPacket(buffer, START, &file_size, &file_name) < 0) {
-					printf("Didn't receive START packet :(\n");
-					return -1;
-				} else printf("Received START packet.\n");
+					if (receiveControlPacket(buffer, START, &file_size, &file_name) < 0) {
+						printf("APPLAYER: Didn't receive START packet :(\n");
+						return -1;
+					} else printf("APPLAYER: Received START packet.\n");
 
-				printf("FILE SIZE: %d.\n", file_size);
-				printf("FILE NAME: %s.\n", file_name);
+					printf("FILE SIZE: %d.\n", file_size);
+					printf("FILE NAME: %s.\n", file_name);
 
-				file_fd = open(file_name, O_CREAT|O_WRONLY, 0666);
-				break;
+					file_fd = open(file_name, O_CREAT|O_WRONLY, 0666);
+					break;
 
-			case 3:
-				//RECEIVE END PACKET
+				case 3:
+					//RECEIVE END PACKET
 
-				if (receiveControlPacket(buffer, END, &file_size, &file_name) < 0) {
-					printf("Didn't receive END packet :(\n");
-					return -1;
-				} else printf("Received END packet.\n");
+					if (receiveControlPacket(buffer, END, &file_size, &file_name) < 0) {
+						printf("APPLAYER: Didn't receive END packet :(\n");
+						return -1;
+					} else printf("APPLAYER: Received END packet.\n");
 
-				received = 1;
-				break;
+					received = 1;
+					break;
+			}
 		}
 
 	}

@@ -468,6 +468,7 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 				printf("LLWRITE: received RR command\n");
 
 				control = !control;
+				stopAlarm();
 				transfer = 0;
 			}else if(state == STOP && ( (ret == C_REJ0 && control) || (ret == C_REJ1 && !control) ) ){
 				printf("LLWRITE: received REJ command\n");

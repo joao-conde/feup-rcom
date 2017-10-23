@@ -3,14 +3,15 @@
 #include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
-
-//TODO:PRECISA do include DataLink.h ????
+#include "DataLink.h"
 
 #define TIMEOUT 3
 
 int flag = 0;
 
 void atende(int signal) {
+	if(signal != SIGALRM)
+		return;
 	flag = 1;
 	printf("Failed connecting, time out!\n\nRetrying:\n");
 	alarm(TIMEOUT);
@@ -19,6 +20,9 @@ void atende(int signal) {
 void setAlarm() {
 	struct sigaction sa;
 	sa.sa_handler = &atende;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+
 
 	sigaction(SIGALRM, &sa, NULL);
 

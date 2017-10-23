@@ -203,85 +203,95 @@ int llopen(int fd, int type){
 	int i = 0;
 	unsigned char ch;
 
-  if(type == TRANSMITTER){
+	if(type == TRANSMITTER){
 		printf("LLOPEN: Transmitter start.\n");
-   		int try = 0;
-   		int ret = -1;
-   		state = START;
+		int try = 0;
+		int ret = -1;
+		state = START;
 
 
-    while(try < NUM_TRIES) {
+		while(try < NUM_TRIES) {
 			if(try == 0 || flag){
 				flag = 0;
 
-	    			if(write(fd,SET,sizeof(SET)) <= 0){			// sends SET frame
-	    				printf("LLOPEN: Error writing SET. Another try.\n");
-	    				try++;
-	    				continue;
-	    			} else printf("LLOPEN: SET sent successfully.\n");
+				if(write(fd,SET,sizeof(SET)) <= 0){			// sends SET frame
+					printf("LLOPEN: Error writing SET. Another try.\n");
+					try++;
+					continue;
+				} else printf("LLOPEN: SET sent successfully.\n");
 
 				if(++try == 1)
-					setAlarm();
+				setAlarm();
 			}
 
-    		for(i=0; i < sizeof(UA); i++){				// receives UA frame sent by the receiver
-    				read(fd, &ch, 1);
-    				ret = stateMachine(&state, ch);
-    			}
+			int r_error = 0;
 
-    			if(state == STOP && ret == C_UA){
-    				printf("LLOPEN: UA received successfully.\n");	// reading was successful and connection was established
-				stopAlarm();
-    				break;
-    			} else{
-    				printf("LLOPEN: Error receiving UA. Another try.\n");
-    				try++;
-    			}
-    		}
-
-    		if(try == NUM_TRIES){						// exceeded max number of tries
-    			printf("LLOPEN: Exceeded max number of tries.\n");
-					return -1;
+			for(i=0; i < sizeof(UA); i++){				// receives UA frame sent by the receiver
+				if(read(fd, &ch, 1) <= 0){
+					r_error = 1;
+					break;
 				}
-
-    } else if(type == RECEIVER){
-			printf("LLOPEN: Receiver start.\n");
-    		int try = 0;
-    		int ret = -1;
-    		state = START;
-
-   		while(try < NUM_TRIES) {
-	     		for(i=0; i < sizeof(SET); i++){				// reads SET frame sent by the transmitter
-	    			read(fd, &ch, 1);
-	    			ret = stateMachine(&state, ch);
-	    		}
-
-	    		if(state == STOP && ret == C_SET){
-	    			printf("LLOPEN: SET received succesfully\n");
-	    		} else{
-	    			printf("LLOPEN: Error receiving SET. Another try.\n");
-	    			try++;
-				continue;
-	    		}
-
-			if(write(fd,UA,sizeof(UA)) < 0){
-	    			printf("LLOPEN: Error writing UA. Another try.\n");
-	    			try++;
-	    		} else{
-				printf("LLOPEN: UA sent successfully.\n");
-				break;
+				ret = stateMachine(&state, ch);
 			}
-	    	}
 
-    		if(try == NUM_TRIES){						// exceeded max number of tries
-    			printf("LLOPEN: Exceeded max number of tries.\n");
+			if(r_error == 1){
+				printf("Error reading UA.\n");
+				continue;
+			}
+
+			if(state == STOP && ret == C_UA){
+				printf("LLOPEN: UA received successfully.\n");	// reading was successful and connection was established
+				stopAlarm();
+				break;
+			} else{
+				printf("LLOPEN: Error receiving UA. Another try.\n");
+				try++;
+			}
+		}
+
+		if(try == NUM_TRIES){						// exceeded max number of tries
+			printf("LLOPEN: Exceeded max number of tries.\n");
 			return -1;
 		}
 
-   	 }
+	} else if(type == RECEIVER){
+		printf("LLOPEN: Receiver start.\n");
+		int try = 0;
+		int ret = -1;
+		state = START;
+
+		while(try < NUM_TRIES) {
+			for(i=0; i < sizeof(SET); i++){				// reads SET frame sent by the transmitter
+				read(fd, &ch, 1);
+				ret = stateMachine(&state, ch);
+			}
+
+			if(state == STOP && ret == C_SET){
+				printf("LLOPEN: SET received succesfully\n");
+			} else{
+				printf("LLOPEN: Error receiving SET. Another try.\n");
+				try++;
+				continue;
+			}
+
+			if(write(fd,UA,sizeof(UA)) < 0){
+				printf("LLOPEN: Error writing UA. Another try.\n");
+				try++;
+			} else{
+				printf("LLOPEN: UA sent successfully.\n");
+				break;
+			}
+		}
+
+		if(try == NUM_TRIES){						// exceeded max number of tries
+			printf("LLOPEN: Exceeded max number of tries.\n");
+			return -1;
+		}
+
+	}
 
 
-    	return fd;
+	return fd;
 }
 
 unsigned char getBCC(const unsigned char* buffer, int length) {
@@ -330,7 +340,7 @@ int countEscapesReplace(unsigned char** packet, int length){
 }
 
 unsigned int stuffPacket(unsigned char** packet, int length){
-
+	int i;
 	for (i = 1; i < length - 1; i++) {
 		if ((*packet)[i] == FLAG || (*packet)[i] == ESCAPE) {
 			memmove(*packet + i + 1, *packet + i, length - i);
@@ -342,22 +352,21 @@ unsigned int stuffPacket(unsigned char** packet, int length){
 		}
 	}
 
-	return newPacketSize;
+	return 1;
 }
 
 int receivePacket(int fd, unsigned char ** packet, unsigned int * packetSize, unsigned int * rcvPckt){
 	ConnectionState state = START;
 	volatile int received = 0;
-	int cReceived;
+
 	int length = 0;
 
   while(!received){
     unsigned char ch;
 
     if(state != STOP){
-      cReceived = read(fd, &ch, 1);
-      if(!cReceived)
-        return cReceived;
+      read(fd, &ch, 1);
+
     }
 
     ch = dataStateMachine(&state,ch);
@@ -376,6 +385,7 @@ int receivePacket(int fd, unsigned char ** packet, unsigned int * packetSize, un
   }
 
   *rcvPckt = received;
+	return 1;
 }
 
 unsigned int destuffPacket(unsigned char** packet, int length){
@@ -398,6 +408,8 @@ int llwrite(int fd, const unsigned char* buffer, int length){
 	int transfer = 1;
 	int try = 0;
 
+	int rd = 0;
+
 	ConnectionState state = START;
 	int i;
 	unsigned char ch;
@@ -406,19 +418,20 @@ int llwrite(int fd, const unsigned char* buffer, int length){
 	unsigned int numEscapes, packetSize;
 	int aux;
 	while(transfer){
-  	if(try == 0 || flag){
+  	if(try == 0 || flag == 1){
 			flag = 0;
       if(try >= NUM_TRIES){
       	printf("LLWRITE: Message not sent.\n");
-        return 0;
+        return -1;
       }
-
-      encapsulatePacket(&packet, buffer, length);
-			numEscapes = countEscapesReplace(&packet, DATA_PACKET_SIZE + length);
-			packetSize = numEscapes + DATA_PACKET_SIZE + length;
-			unsigned char* stuffedPacket = malloc(packetSize);
-			memcpy(stuffedPacket, packet, DATA_PACKET_SIZE + length ); // ???
-      aux = stuffPacket(&stuffedPacket, packetSize);
+			if(try == 0) {
+      	encapsulatePacket(&packet, buffer, length);
+				numEscapes = countEscapesReplace(&packet, DATA_PACKET_SIZE + length);
+				packetSize = numEscapes + DATA_PACKET_SIZE + length;
+				unsigned char* stuffedPacket = malloc(packetSize);
+				memcpy(stuffedPacket, packet, DATA_PACKET_SIZE + length ); // ???
+      	aux = stuffPacket(&stuffedPacket, packetSize);
+			}
       write(fd, stuffedPacket, packetSize); // send Packet
 
       if(++try == 1){
@@ -429,9 +442,23 @@ int llwrite(int fd, const unsigned char* buffer, int length){
 
 		int ret = -1;
 		control_field = -1;
+		int error = 0;
     for(i=0; i < sizeof(RR0); i++){
-    	read(fd, &ch, 1);
+    	rd = read(fd, &ch, 1);
+			if(rd <= 0){
+				printf("READ WRONG.\n");
+				error = 1;
+
+				break;
+			}
+			printf("LLWRITE: read %d\n", rd);
       ret = stateMachine(&state, ch);
+
+			if(error == 1){
+				error = 0;
+				printf("ERROR HERE.\n");
+				continue;
+			}
     }
 
     if(state == STOP && ( (ret == C_RR0 && control) || (ret == C_RR1 && !control) ) ){
@@ -467,25 +494,27 @@ int verifyDataPacketReceived(unsigned char * buffer, int size){
 
 		if(bcc2 != BCC2rcvd){
 			printf("LLREAD: Bad bcc2\n");
-			return 0;
+			return -2;
 		}
 	}else if(c != C0 && c != C1){
 		printf("LLREAD: Bad control field: %d\n", c);
-		return 0;
+		return -1;
 	}
 
-	return 1;
+	return 0;
 }
 
 int llread(int fd, unsigned char* buffer){
 	unsigned int packetSize = DATA_PACKET_SIZE;
   unsigned char * packet = malloc(MESSAGE_DATA_MAX_SIZE);
   unsigned int size;
+	unsigned char * destuffedPacket;
 	unsigned int rcvPckt = 0;
 	int received = 0;
 
 	while(!received){
 		receivePacket(fd, &packet, &packetSize, &rcvPckt);
+
 		unsigned char * newPacket = malloc(packetSize);
 		memcpy(newPacket, packet, packetSize ); // ???
 		if(rcvPckt){
@@ -494,41 +523,44 @@ int llread(int fd, unsigned char* buffer){
 			size = destuffPacket(&newPacket, packetSize);
 
 			packetSize -= countEscapesReplace(&newPacket, packetSize);
-			unsigned char * destuffedPacket = malloc(packetSize);
+			destuffedPacket = malloc(packetSize);
 			memcpy(destuffedPacket, newPacket, packetSize ); // ???
 			printf("LLREAD: destuffed packet\n");
 
-			if(!verifyDataPacketReceived(destuffedPacket, size)){
-				printf("LLREAD: Packet is not data or has header errors\n");
-				return 0;
+			if(verifyDataPacketReceived(destuffedPacket, size) < 0){
+				printf("LLREAD: Packet is not data or has header errors\n"); //does not save packet
+				if(destuffedPacket[2] == C0 && control){
+					write(fd,REJ1,sizeof(REJ1));
+					printf("LLREAD: receiced and sent REJ\n");
+
+					free(destuffedPacket);
+					return -1;
+				} else if(destuffedPacket[2] == C1 && !control){
+					write(fd,REJ0,sizeof(REJ0));
+					printf("LLREAD: receiced and sent REJ\n");
+
+					free(destuffedPacket);
+					return -1;
+				} else {
+					printf("LLREAD: ignore, no response sent\n");
+				}
 			} else {
-				sleep(1);
 				if((destuffedPacket[2] == C0 && !control) || (destuffedPacket[2] == C1 && control)){
+					printf("LLREAD: Got it! Sending Control.\n");
 					control = !control;
 
 					//guardar no buffer (com decapsulation incluida)
 					memcpy(buffer, &destuffedPacket[4], size-DATA_PACKET_SIZE);
 
 					if(control)
-						write(fd,RR1,sizeof(RR1));
+					write(fd,RR1,sizeof(RR1));
 					else
-						write(fd,RR0,sizeof(RR0));
+					write(fd,RR0,sizeof(RR0));
 
 					received = 1;
-				} else if(destuffedPacket[2] == C0 && control){
-					//nao guarda
-					write(fd,REJ1,sizeof(REJ1));
-
-					printf("LLREAD: recebeu e enviou REJ1\n");
+					free(destuffedPacket);
 					return 0;
-				} else if(destuffedPacket[2] == C1 && !control){
-					//nao guarda
-					write(fd,REJ0,sizeof(REJ0));
-
-					printf("LLREAD: recebeu e enviou REJ0\n");
-					return 0;
-				} else
-					return 0;
+				}
 			}
 		}
 	}
@@ -561,63 +593,63 @@ int llclose (int fd, int type){
 
 
 			for(i=0; i < sizeof(DISC); i++){
-    				read(fd, &ch, 1);
-    				int ret = stateMachine(&state, ch);
+				read(fd, &ch, 1);
+				int ret = stateMachine(&state, ch);
 
-    				if(ret != -1)
-    					control_field = ret;
-    			}
+				if(ret != -1)
+				control_field = ret;
+			}
 
-    			if(state == STOP && control_field == C_DISC){
-    				printf("LLCLOSE: DISC received successfully.\n");
-    			} else {
+			if(state == STOP && control_field == C_DISC){
+				printf("LLCLOSE: DISC received successfully.\n");
+			} else {
 				printf("LLCLOSE: Error reading DISC. Another try.\n");
 				try++;
 				continue;
 			}
 
-    			if(write(fd,UA, sizeof(UA)) <= 0){
-    				printf("LLCLOSE: Error writing UA. Another try.\n");
-    				try++;
-    			} else{
+			if(write(fd,UA, sizeof(UA)) <= 0){
+				printf("LLCLOSE: Error writing UA. Another try.\n");
+				try++;
+			} else{
 				printf("LLCLOSE: UA sent successfully.\n");
 				break;
 			}
 		}
 
 		if(try == NUM_TRIES){					// exceeded max number of tries
-    			printf("LLOPEN: Exceeded max number of tries.\n");
+			printf("LLOPEN: Exceeded max number of tries.\n");
 			return -1;
 		}
 
 	} else if(type == RECEIVER){
 		printf("LLCLOSE: receiver start.\n");
 		int try = 0;
-    		int control_field = -1;
-    		state = START;
+		int control_field = -1;
+		state = START;
 
-   		while(try < NUM_TRIES) {
-     			for(i=0; i < sizeof(DISC); i++){		// reads DISC frame sent by the transmitter
-    				read(fd, &ch, 1);
-    				int ret = stateMachine(&state, ch);
+		while(try < NUM_TRIES) {
+			for(i=0; i < sizeof(DISC); i++){		// reads DISC frame sent by the transmitter
+				read(fd, &ch, 1);
+				int ret = stateMachine(&state, ch);
 
-    				if(ret != -1)
-    					control_field = ret;
-    			}
+				if(ret != -1)
+				control_field = ret;
+			}
 
-    			if(state == STOP && control_field == C_DISC){
-    				printf("LLCLOSE: DISC received successfully.\n");
-    			} else{
+			if(state == STOP && control_field == C_DISC){
+				printf("LLCLOSE: DISC received successfully.\n");
+			} else{
 				printf("LLCLOSE: Error reading DISC. Another try.\n");
 				try++;
 				continue;
 			}
 
-	    		if(write(fd,DISC,sizeof(DISC)) < 0){			// writes frame DISC and checks if it was successful
-	    			printf("LLCLOSE: Error writing DISC. Another try\n");
-	    			try++;
+			if(write(fd,DISC,sizeof(DISC)) < 0){			// writes frame DISC and checks if it was successful
+				printf("LLCLOSE: Error writing DISC. Another try\n");
+				try++;
 				continue;
-	    		} else printf("LLCLOSE: Disc sent successfully\n");
+			} else printf("LLCLOSE: Disc sent successfully\n");
 
 			state = START;
 
@@ -627,7 +659,7 @@ int llclose (int fd, int type){
 				int ret = stateMachine(&state, ch);
 
 				if(ret != -1)
-					control_field = ret;
+				control_field = ret;
 			}
 
 			if(state == STOP && control_field == C_UA){
@@ -640,7 +672,7 @@ int llclose (int fd, int type){
 		}
 
 		if(try == NUM_TRIES){						// exceeded max number of tries
-    			printf("LLCLOSE: Exceeded max number of tries.\n");
+			printf("LLCLOSE: Exceeded max number of tries.\n");
 			return -1;
 		}
 

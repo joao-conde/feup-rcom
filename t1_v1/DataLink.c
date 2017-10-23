@@ -369,12 +369,25 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 			ch = dataStateMachine(&state,ch);
 
 			if(state == FLAG_RCV && /**(*buffSize) < DATA_PACKET_SIZE &&**/ length !=0){
+
 				(*buffer) = (unsigned char*) realloc((*buffer), DATA_PACKET_SIZE);
+				if(!(*buffer)){
+					printf("\nREALLOC() FAILURE\n");
+					free(*buffer);
+					return 0;
+				}
 				length = 0;
 			} else if(state == DATA_RCV){
 				if (length % (*buffSize) == 0) {
 					int factor = length / (*buffSize) + 1;
+
+
 					(*buffer) = (unsigned char*) realloc((*buffer), factor * (*buffSize));
+					if(!(*buffer)){
+						printf("\nREALLOC() FAILURE\n");
+						free(*buffer);
+						return 0;
+					}
 				}
 				state = BCC_OK;
 			}

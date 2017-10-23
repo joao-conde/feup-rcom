@@ -1,10 +1,10 @@
 CC=gcc
-CFLAGS = -Wall
+CFLAGS = -g -Wall
 
 all: main
 
 main: DataLink.h AppLayer.h main.c Alarm.h
-	$(CC) $(CFLAGS) main.c AppLayer.c DataLink.c Alarm.c -o main -lm
+	$(CC) $(CFLAGS) main.c AppLayer.c DataLink.c Alarm.c -o t1 -lm
 
 clean:
-	rm -f main
+	rm -f t1

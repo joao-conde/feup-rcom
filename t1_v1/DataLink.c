@@ -329,16 +329,17 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 		return 0;
 	}
 
-	unsigned int stuffPacket(unsigned char** packet, int length){
-		unsigned int newPacketSize = length;
-
+	int countEscapesReplace(unsigned char** packet, int length){
+		int ret = 0;
 		int i;
-		for (i = 1; i < length - 1; i++){
-			if ((*packet)[i] == FLAG || (*packet)[i] == ESCAPE)
-			newPacketSize++;
+		for(i = 1; i < length - 1; i++){
+			if((*packet)[i] == ESCAPE || (*packet)[i] == FLAG)
+			ret++;
 		}
+		return ret;
+	}
 
-		*packet = (unsigned char*) realloc(*packet, newPacketSize);
+	unsigned int stuffPacket(unsigned char** packet, int length){
 
 		for (i = 1; i < length - 1; i++) {
 			if ((*packet)[i] == FLAG || (*packet)[i] == ESCAPE) {
@@ -351,7 +352,7 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 			}
 		}
 
-		return newPacketSize;
+		return 1;
 	}
 
 	int receivePacket(int fd, unsigned char ** buffer, unsigned int * buffSize){
@@ -368,27 +369,9 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 
 			ch = dataStateMachine(&state,ch);
 
-			if(state == FLAG_RCV && /**(*buffSize) < DATA_PACKET_SIZE &&**/ length !=0){
-
-				(*buffer) = (unsigned char*) realloc((*buffer), DATA_PACKET_SIZE);
-				if(!(*buffer)){
-					printf("\nREALLOC() FAILURE\n");
-					free(*buffer);
-					return 0;
-				}
+			if(state == FLAG_RCV && length !=0){
 				length = 0;
 			} else if(state == DATA_RCV){
-				if (length % (*buffSize) == 0) {
-					int factor = length / (*buffSize) + 1;
-
-
-					(*buffer) = (unsigned char*) realloc((*buffer), factor * (*buffSize));
-					if(!(*buffer)){
-						printf("\nREALLOC() FAILURE\n");
-						free(*buffer);
-						return 0;
-					}
-				}
 				state = BCC_OK;
 			}
 
@@ -417,8 +400,6 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 			}
 		}
 
-		*packet = (unsigned char*) realloc(*packet, length);
-
 		return length;
 	}
 
@@ -432,7 +413,8 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 		int rd = 0;
 
 		unsigned char* packet = malloc(DATA_PACKET_SIZE + length);
-		unsigned int packetSize;
+		unsigned char* stuffedPacket;
+		unsigned int packetSize, numEscapes;
 
 		while(transfer){
 			printf("LLWRITE - try: %d\n", try);
@@ -445,10 +427,14 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 
 				if(try == 0) {
 					encapsulatePacket(&packet, buffer, length);
-					packetSize = stuffPacket(&packet, DATA_PACKET_SIZE + length);
+					numEscapes = countEscapesReplace(&packet, DATA_PACKET_SIZE + length);
+					packetSize = numEscapes + DATA_PACKET_SIZE + length;
+					stuffedPacket = malloc(packetSize);
+					memcpy(stuffedPacket, packet, DATA_PACKET_SIZE + length );
+					stuffPacket(&stuffedPacket, packetSize);
 				}
 
-				write(fd, packet, packetSize); // send Packet
+				write(fd, stuffedPacket, packetSize); // send Packet
 
 				if(++try == 1){
 					setAlarm();
@@ -493,6 +479,7 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 		stopAlarm();
 
 		free(packet);
+		free(stuffedPacket);
 
 		printf("LLWRITE: packet sent & received confirmation packet\n");
 
@@ -521,42 +508,54 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 	}
 
 	int llread(int fd, unsigned char* buffer){
-		unsigned int packetSize = DATA_PACKET_SIZE;
+		unsigned int packetSize = 65535;
 		unsigned char * packet = malloc(packetSize);
 		unsigned int size;
+		unsigned char * destuffedPacket;
+		unsigned char * newPacket;
 		int received = 0;
 
 		while(!received){
 			if(receivePacket(fd, &packet, &packetSize)){
 				printf("LLREAD: received a packet\n");
 
-				size = destuffPacket(&packet, packetSize);
+				newPacket = malloc(packetSize);
+				memcpy(newPacket, packet, packetSize);
+
+				size = destuffPacket(&newPacket, packetSize);
+
+				destuffedPacket = malloc(size);
+				memcpy(destuffedPacket, newPacket, size );
 				printf("LLREAD: destuffed packet\n");
 
-				if(verifyDataPacketReceived(packet, size) < 0){
+				if(verifyDataPacketReceived(destuffedPacket, size) < 0){
 					printf("LLREAD: Packet is not data or has header errors\n"); //does not save packet
-					if(packet[2] == C0 && control){
+					if(destuffedPacket[2] == C0 && control){
 						write(fd,REJ1,sizeof(REJ1));
 						printf("LLREAD: receiced and sent REJ\n");
 
 						free(packet);
+						free(newPacket);
+						free(destuffedPacket);
 						return -1;
-					} else if(packet[2] == C1 && !control){
+					} else if(destuffedPacket[2] == C1 && !control){
 						write(fd,REJ0,sizeof(REJ0));
 						printf("LLREAD: receiced and sent REJ\n");
 
 						free(packet);
+						free(newPacket);
+						free(destuffedPacket);
 						return -1;
 					} else {
 						printf("LLREAD: ignore, no response sent\n");
 					}
 				} else {
-					if((packet[2] == C0 && !control) || (packet[2] == C1 && control)){
+					if((destuffedPacket[2] == C0 && !control) || (destuffedPacket[2] == C1 && control)){
 						printf("LLREAD: Got it! Sending Control.\n");
 						control = !control;
 
 						//guardar no buffer (com decapsulation incluida)
-						memcpy(buffer, &packet[4], size-DATA_PACKET_SIZE);
+						memcpy(buffer, &destuffedPacket[4], size-DATA_PACKET_SIZE);
 
 						if(control)
 						write(fd,RR1,sizeof(RR1));
@@ -565,6 +564,8 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 
 						received = 1;
 						free(packet);
+						free(newPacket);
+						free(destuffedPacket);
 						return 0;
 					}
 				}
@@ -572,6 +573,8 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 		}
 
 		free(packet);
+		free(newPacket);
+		free(destuffedPacket);
 
 		stopAlarm();
 

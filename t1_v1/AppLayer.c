@@ -65,7 +65,7 @@ int sendDataPacket(int file_fd, int fd) {
 	int n_seq = 0;
 
 	while(!received){
-    bytes_read = 0; //???????????? SE CALHAR N É NECESSARIO
+    bytes_read = 0; 
 		bytes_read = read(file_fd, &buffer, MAX_DATA_SIZE);
 
 		if (bytes_read < 0){

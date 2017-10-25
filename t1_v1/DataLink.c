@@ -37,7 +37,7 @@ struct termios oldtio, newtio;
 
 #define TIMEOUT 5
 
-const unsigned int MESSAGE_DATA_MAX_SIZE = 512;
+const unsigned int MESSAGE_DATA_MAX_SIZE = 65535;
 
 const unsigned char SET[] = {FLAG, A, C_SET, A^C_SET,FLAG};
 const unsigned char UA[] = {FLAG, A, C_UA, A^C_UA, FLAG};
@@ -329,10 +329,10 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 		return 0;
 	}
 
-	int countEscapesReplace(unsigned char** packet, int length){
+	int countEscapesReplace(const unsigned char** packet, int length){
 		int ret = 0;
 		int i;
-		for(i = 1; i < length - 1; i++){
+		for(i = 0; i < length; i++){
 			if((*packet)[i] == ESCAPE || (*packet)[i] == FLAG)
 			ret++;
 		}
@@ -340,7 +340,7 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 	}
 
 	unsigned int stuffPacket(unsigned char** packet, int length){
-
+		int i;
 		for (i = 1; i < length - 1; i++) {
 			if ((*packet)[i] == FLAG || (*packet)[i] == ESCAPE) {
 				memmove(*packet + i + 1, *packet + i, length - i);
@@ -412,9 +412,12 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 		unsigned char ch;
 		int rd = 0;
 
-		unsigned char* packet = malloc(DATA_PACKET_SIZE + length);
-		unsigned char* stuffedPacket;
+		//unsigned char* stuffedPacket;
 		unsigned int packetSize, numEscapes;
+		numEscapes = countEscapesReplace(&buffer, length);
+		packetSize = numEscapes + DATA_PACKET_SIZE + length;
+		//stuffedPacket = malloc(packetSize);
+		unsigned char* packet = malloc(packetSize);
 
 		while(transfer){
 			printf("LLWRITE - try: %d\n", try);
@@ -427,14 +430,11 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 
 				if(try == 0) {
 					encapsulatePacket(&packet, buffer, length);
-					numEscapes = countEscapesReplace(&packet, DATA_PACKET_SIZE + length);
-					packetSize = numEscapes + DATA_PACKET_SIZE + length;
-					stuffedPacket = malloc(packetSize);
-					memcpy(stuffedPacket, packet, DATA_PACKET_SIZE + length );
-					stuffPacket(&stuffedPacket, packetSize);
+					//memcpy(stuffedPacket, packet, DATA_PACKET_SIZE + length );
+					stuffPacket(&packet, DATA_PACKET_SIZE + length);
 				}
 
-				write(fd, stuffedPacket, packetSize); // send Packet
+				write(fd, packet, packetSize); // send Packet
 
 				if(++try == 1){
 					setAlarm();
@@ -479,7 +479,7 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 		stopAlarm();
 
 		free(packet);
-		free(stuffedPacket);
+		//free(stuffedPacket);
 
 		printf("LLWRITE: packet sent & received confirmation packet\n");
 
@@ -508,7 +508,7 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 	}
 
 	int llread(int fd, unsigned char* buffer){
-		unsigned int packetSize = 65535;
+		unsigned int packetSize = MESSAGE_DATA_MAX_SIZE;
 		unsigned char * packet = malloc(packetSize);
 		unsigned int size;
 		unsigned char * destuffedPacket;
@@ -532,7 +532,7 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 					printf("LLREAD: Packet is not data or has header errors\n"); //does not save packet
 					if(destuffedPacket[2] == C0 && control){
 						write(fd,REJ1,sizeof(REJ1));
-						printf("LLREAD: receiced and sent REJ\n");
+						printf("LLREAD: received and sent REJ\n");
 
 						free(packet);
 						free(newPacket);
@@ -540,7 +540,7 @@ int stateMachine(ConnectionState * state, unsigned char ch){
 						return -1;
 					} else if(destuffedPacket[2] == C1 && !control){
 						write(fd,REJ0,sizeof(REJ0));
-						printf("LLREAD: receiced and sent REJ\n");
+						printf("LLREAD: received and sent REJ\n");
 
 						free(packet);
 						free(newPacket);

@@ -35,8 +35,6 @@ struct termios oldtio, newtio;
 #define CONTROL_PACKET_SIZE	5
 #define DATA_PACKET_SIZE 	6*sizeof(char)
 
-#define TIMEOUT 5
-
 const unsigned int MESSAGE_DATA_MAX_SIZE = 65535;
 
 const unsigned char SET[] = {FLAG, A, C_SET, A^C_SET,FLAG};

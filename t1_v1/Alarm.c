@@ -8,12 +8,14 @@
 #define TIMEOUT 3
 
 int flag = 0;
+int numberOfTimeOuts = 0;
 
 void atende(int signal) {
 	if(signal != SIGALRM)
 		return;
 	flag = 1;
-	printf("Failed connecting, time out!\n\nRetrying:\n");
+	numberOfTimeOuts++;
+	//printf("Failed connecting, time out!\n\nRetrying:\n");
 	alarm(TIMEOUT);
 }
 

@@ -18,7 +18,12 @@
 #define TRANSMITTER 1
 #define RECEIVER 0
 
-#define MAX_DATA_SIZE 1024
+#define MAX_DATA_SIZE 512
+
+#define BAUDRATE 19200
+#define TIMEOUT 3
+
+const int PROGRESS_BAR_LENGTH = 51;
 
 int sendControlPacket(int fd, int file_size, char* file_name, int control_field){
 	int p = 0;
@@ -51,59 +56,69 @@ int sendControlPacket(int fd, int file_size, char* file_name, int control_field)
 	if (llwrite(fd, packet, packet_size) < 0){
 		printf("llwrite failure :(\n");
 		return -1;
-	}else printf("llwrite success.\n");
+	}//else printf("llwrite success.\n");
 
 
 	return 0;
 }
 
-int sendDataPacket(int file_fd, int fd) {
+int sendDataPacket(int file_size, int file_fd, int fd) {
 	int received = 0;
 	int bytes_read = 0;
+	int bytes_wrote = 0;
 	char buffer[MAX_DATA_SIZE];
-	unsigned char packet[4 + MAX_DATA_SIZE];
+
 	int n_seq = 0;
 
 	while(!received){
-    bytes_read = 0; 
+    bytes_read = 0;
 		bytes_read = read(file_fd, &buffer, MAX_DATA_SIZE);
-
+		unsigned char packet[4 + bytes_read];
 		if (bytes_read < 0){
 			printf("APPLAYER error reading data :(\n");
 			return -1;
 		} else if (bytes_read < MAX_DATA_SIZE){
-			printf("Reached end of data reading!\n");
+			//printf("Reached end of data reading!\n");
 			received = 1;
 		}
-
+		bytes_wrote+=bytes_read;
 		packet[0] = DATA;
 		packet[1] = n_seq % 255;
-		packet[2] = (0xFF00 & bytes_read) >> 8;		// SE DER ERRO E POR CAUSA DISTO!!!!!!!!!!!!!!!!!!!!!!!!!
-		packet[3] = 0x00FF & bytes_read;
+		packet[2] = bytes_read / 256;
+		packet[3] =	bytes_read % 256;
 
 		memcpy(&packet[4], buffer, bytes_read);
 
-		int packet_size = 4 + MAX_DATA_SIZE;
+		int packet_size = 4 + bytes_read;
 
 		if(llwrite(fd, packet, packet_size)<0){
 			printf("APPLAYER llwrite error.\n");
+			printProgressBar(bytes_wrote, file_size);
 			return -1;
-		} else printf("APPLAYER llwrite success.\n");
-
+		} //else printf("APPLAYER llwrite success.\n");
 
 		n_seq++;
 	}
+	printProgressBar(bytes_wrote, file_size);
+
+	printf("\n\n");
+
 
 	return 0;
 }
 
 int sendFile(const char* path, int file_fd, char *file_name) {
 
+	showInitialInformation(1);
+
 	int fd = startConnection(path);
+
+	printf("########    Starting Connection    ########\n");
 
 	if(llopen(fd, TRANSMITTER) < 0)
 		printf("APPLAYER: llopen failure :(\n");
-	else printf("APPLAYER: llopen success.\n");
+
+	printf("\n########  Connection Established   ########\n");
 
 	struct stat stat_buf;
 
@@ -114,27 +129,31 @@ int sendFile(const char* path, int file_fd, char *file_name) {
 
 	int file_size = stat_buf.st_size;
 
+	printf("\nREAL FILE SIZE:   %d\n", file_size);
+
 	//SEND START PACKET
 	if (sendControlPacket(fd, file_size, file_name, START) < 0){
 		printf("APPLAYER: Didn't send START packet :(\n");
 		return -1;
-	} else printf("APPLAYER: Sent START packet.\n");
+	} //else printf("APPLAYER: Sent START packet.\n");
 
 	//SEND DATA PACKET
-	if (sendDataPacket(file_fd, fd) < 0){
+	if (sendDataPacket(file_size, file_fd, fd) < 0){
 		printf("APPLAYER: Didn't send DATA packet :(\n");
 		return -1;
-	} else printf("APPLAYER: Sent DATA packet.\n");
+	} //else printf("APPLAYER: Sent DATA packet.\n");
 
 	//SEND END PACKET
 	if (sendControlPacket(fd, file_size, file_name, END) < 0){
 		printf("APPLAYER: Didn't send END packet :(\n");
 		return -1;
-	} else printf("APPLAYER: Sent END packet.\n");
+	} //else printf("APPLAYER: Sent END packet.\n");
 
 	if(llclose(fd, TRANSMITTER) < 0)
 		printf("APPLAYER: llclose failure :(\n");
-	else printf("APPLAYER: llclose success.\n");
+	//else printf("APPLAYER: llclose success.\n");
+
+	printStatistics(1);
 
 	return 0;
 }
@@ -178,7 +197,7 @@ int receiveControlPacket(unsigned char * buffer, int control_field, unsigned int
 		}
 
 	} else if(buffer[0] == END) {
-		printf("APPLAYER: Received END control packet.\n");
+		//printf("APPLAYER: Received END control packet.\n");
 
 	} else {
 		printf("APPLAYER: Critical Error. Impossible state reached.");
@@ -205,24 +224,32 @@ int receiveDataPacket(unsigned char* buffer, int file_fd) {
 
 int receiveFile(const char* path){
 
+	showInitialInformation(0);
+
 	char* file_name = malloc(MAX_DATA_SIZE);
 	unsigned int file_size;
 	int file_fd = 0;
 	int received = 0;
+	int bytes_read = 0;
+	int aux_bytes_read = 0;
 
 	int fd = startConnection(path);
 
+	printf("########    Starting Connection    ########\n");
+
 	if(llopen(fd, RECEIVER) < 0)
-		printf("APPLAYER RECEIVER: llopen failure :(\n");
-	else printf("APPLAYER RECEIVER: llopen success.\n");
+		printf("APPLAYER: llopen failure :(\n");
+
+	printf("\n########  Connection Established   ########\n");
 
 	while(!received){
 		unsigned char buffer[MAX_DATA_SIZE];
-
-		if (llread(fd, buffer) < 0)
+		aux_bytes_read = llread(fd, buffer);
+		if (aux_bytes_read < 0){
 			printf("APPLAYER: llread failure :(\n");
-		else {
-			printf("APPLAYER: llread success.\n");
+			printProgressBar(bytes_read, file_size);
+		}else {
+			//printf("APPLAYER: llread success.\n");
 
 			switch(buffer[0]){
 				case 1:
@@ -231,8 +258,8 @@ int receiveFile(const char* path){
 					if (receiveDataPacket(&buffer[1], file_fd) < 0){
 						printf("APPLAYER: Didn't receive DATA packet :(\n");
 						return -1;
-					} else printf("APPLAYER: Received DATA packet.\n");
-
+					} //else printf("APPLAYER: Received DATA packet.\n");
+					bytes_read	+= (aux_bytes_read - 4);
 					break;
 
 				case 2:
@@ -241,10 +268,10 @@ int receiveFile(const char* path){
 					if (receiveControlPacket(buffer, START, &file_size, &file_name) < 0) {
 						printf("APPLAYER: Didn't receive START packet :(\n");
 						return -1;
-					} else printf("APPLAYER: Received START packet.\n");
+					} //else printf("APPLAYER: Received START packet.\n");
 
-					printf("FILE SIZE: %d.\n", file_size);
-					printf("FILE NAME: %s.\n", file_name);
+
+					//printf("FILE NAME: %s.\n", file_name);
 
 					file_fd = open(file_name, O_CREAT|O_WRONLY, 0666);
 					break;
@@ -255,7 +282,7 @@ int receiveFile(const char* path){
 					if (receiveControlPacket(buffer, END, &file_size, &file_name) < 0) {
 						printf("APPLAYER: Didn't receive END packet :(\n");
 						return -1;
-					} else printf("APPLAYER: Received END packet.\n");
+					} //else printf("APPLAYER: Received END packet.\n");
 
 					received = 1;
 					break;
@@ -264,6 +291,13 @@ int receiveFile(const char* path){
 
 	}
 
+	printProgressBar(bytes_read, file_size);
+
+
+	printf("\n\nRECEIVED FILE SIZE: %d.\n", bytes_read);
+
+	printStatistics(0);
+
 	free(file_name);
 	close(file_fd);
 
@@ -271,7 +305,83 @@ int receiveFile(const char* path){
 		printf("APPLAYER: llclose failure :(\n");
 		return -1;
 	}
-	else printf("APPLAYER: llclose success.\n");
+	//else printf("APPLAYER: llclose success.\n");
 
 	return 0;
+}
+
+void printProgressBar(float current, float total) {
+	float percentage = 100.0 * current / total;
+
+	printf("\nCompleted: %.2f%% [", percentage);
+
+	int i, len = PROGRESS_BAR_LENGTH;
+	int pos = percentage * len / 100.0;
+
+	for (i = 0; i < len; i++)
+		i <= pos ? printf("=") : printf(" ");
+
+	printf("]");
+
+	fflush(stdout);
+}
+
+void clearScreen() {
+	printf("\033[2J");
+}
+
+void showInitialInformation(int mode){
+	clearScreen();
+
+	if(mode == TRANSMITTER){
+		printf("\n"
+			"###############################################\n"
+			"################  TRANSMITTER  ################\n"
+			"###############################################\n\n\n"
+			"             INITIAL INFORMATION              \n\n"
+			"             BAUDRATE: B%d                    \n"
+			"             MESSAGE MAX SIZE: %d             \n"
+			"             MAX NUM TRIES: %d                \n"
+			"             TIMEOUT: %d                      \n\n\n"
+			"###############################################\n\n\n",
+			BAUDRATE, MAX_DATA_SIZE, getNumTries(), TIMEOUT);
+	}else{
+		printf("\n"
+			"###############################################\n"
+			"##################  RECEIVER  #################\n"
+			"###############################################\n\n\n"
+			"             INITIAL INFORMATION              \n\n"
+			"             BAUDRATE: B%d                    \n"
+			"             MESSAGE MAX SIZE: %d             \n"
+			"             MAX NUM TRIES: %d                \n"
+			"             TIMEOUT: %d                      \n\n\n"
+			"###############################################\n\n\n",
+			BAUDRATE, MAX_DATA_SIZE, getNumTries(), TIMEOUT);
+	}
+}
+
+void printStatistics(int mode){
+	if(mode == TRANSMITTER){
+		printf("\n"
+			"                                               \n"
+			"                    STATISTICS                 \n"
+			"                                               \n\n\n"
+			"             SENT MESSAGES: %d                 \n"
+			"             RECEIVED RR: %d                   \n"
+			"             RECEIVED REJ: %d                  \n"
+			"             NUM TIMEOUTS: %d                  \n\n\n"
+			"###############################################\n\n\n",
+			getnumberOfFramesItransmitted(), getnumberOfRRreceived(), getnumberOfREJreceived(), getnumberOfTimeOuts());
+	}else{
+		printf("\n"
+			"                                               \n"
+			"                    STATISTICS                 \n"
+			"                                               \n\n\n"
+			"             RECEIVED MESSAGES: %d             \n"
+			"             SENT RR: %d                       \n"
+			"             SENT REJ: %d                      \n"
+			"             Ignored Messages: %d              \n\n\n"
+			"###############################################\n\n\n",
+			getnumberOfFramesI(), getnumberOfRRsent(), getnumberOfREJsent(), getnumberOfIgnoredMessages());
+	}
 }

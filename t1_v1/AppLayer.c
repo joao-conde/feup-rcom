@@ -96,10 +96,10 @@ int sendDataPacket(int file_size, int file_fd, int fd) {
 			printProgressBar(bytes_wrote, file_size);
 			return -1;
 		} //else printf("APPLAYER llwrite success.\n");
+		printProgressBar(bytes_wrote, file_size);
 
 		n_seq++;
 	}
-	printProgressBar(bytes_wrote, file_size);
 
 	printf("\n\n");
 
@@ -260,6 +260,8 @@ int receiveFile(const char* path){
 						return -1;
 					} //else printf("APPLAYER: Received DATA packet.\n");
 					bytes_read	+= (aux_bytes_read - 4);
+					printProgressBar(bytes_read, file_size);
+					
 					break;
 
 				case 2:
@@ -291,7 +293,6 @@ int receiveFile(const char* path){
 
 	}
 
-	printProgressBar(bytes_read, file_size);
 
 
 	printf("\n\nRECEIVED FILE SIZE: %d.\n", bytes_read);

@@ -11,17 +11,10 @@ static int connectSocket(const char* ip, int port) {
 	server_addr.sin_port = htons(port); /*server TCP port must be network byte ordered */
 
 	// open an TCP socket
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		perror("socket()");
-		return -1;
-	}
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
 	// connect to the server
-	if (connect(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr))
-			< 0) {
-		perror("connect()");
-		return -1;
-	}
+	connect(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr));
 
 	return sockfd;
 }
@@ -30,18 +23,12 @@ int ftpConnect(ftp* ftp, const char* ip, int port) {
 	int socketfd;
 	char rd[1024];
 
-	if ((socketfd = connectSocket(ip, port)) < 0) {
-		printf("ERROR: Cannot connect socket.\n");
-		return 1;
-	}
+	socketfd = connectSocket(ip, port));
 
 	ftp->control_socket_fd = socketfd;
 	ftp->data_socket_fd = 0;
 
-	if (ftpRead(ftp, rd, sizeof(rd))) {
-		printf("ERROR: ftpRead failure.\n");
-		return 1;
-	}
+	ftpRead(ftp, rd, sizeof(rd));
 
 	return 0;
 }
@@ -51,32 +38,19 @@ int ftpLogin(ftp* ftp, const char* user, const char* password) {
 
 	// username
 	sprintf(sd, "USER %s\r\n", user);
-	if (ftpSend(ftp, sd, strlen(sd))) {
-		printf("ERROR: ftpSend failure.\n");
-		return 1;
-	}
 
-	if (ftpRead(ftp, sd, sizeof(sd))) {
-		printf(
-				"ERROR: Access denied reading username response.\nftpRead failure.\n");
-		return 1;
-	}
+	ftpSend(ftp, sd, strlen(sd));
+
+	ftpRead(ftp, sd, sizeof(sd));
 
 	// cleaning buffer
 	memset(sd, 0, sizeof(sd));
 
 	// password
 	sprintf(sd, "PASS %s\r\n", password);
-	if (ftpSend(ftp, sd, strlen(sd))) {
-		printf("ERROR: ftpSend failure.\n");
-		return 1;
-	}
+	ftpSend(ftp, sd, strlen(sd));
 
-	if (ftpRead(ftp, sd, sizeof(sd))) {
-		printf(
-				"ERROR: Access denied reading password response.\nftpRead failure.\n");
-		return 1;
-	}
+	ftpRead(ftp, sd, sizeof(sd));
 
 	return 0;
 }
@@ -85,49 +59,30 @@ int ftpCWD(ftp* ftp, const char* path) {
 	char cwd[1024];
 
 	sprintf(cwd, "CWD %s\r\n", path);
-	if (ftpSend(ftp, cwd, strlen(cwd))) {
-		printf("ERROR: Cannot send path to CWD.\n");
-		return 1;
-	}
+	ftpSend(ftp, cwd, strlen(cwd));
 
-	if (ftpRead(ftp, cwd, sizeof(cwd))) {
-		printf("ERROR: Cannot send path to change directory.\n");
-		return 1;
-	}
+	ftpRead(ftp, cwd, sizeof(cwd));
 
 	return 0;
 }
 
 int ftpPasv(ftp* ftp) {
 	char pasv[1024] = "PASV\r\n";
-	if (ftpSend(ftp, pasv, strlen(pasv))) {
-		printf("ERROR: Cannot enter in passive mode.\n");
-		return 1;
-	}
 
-	if (ftpRead(ftp, pasv, sizeof(pasv))) {
-		printf("ERROR: None information received to enter in passive mode.\n");
-		return 1;
-	}
+	ftpSend(ftp, pasv, strlen(pasv));
+
+	ftpRead(ftp, pasv, sizeof(pasv));
 
 	// starting process information
 	int ipPart1, ipPart2, ipPart3, ipPart4;
 	int port1, port2;
-	if ((sscanf(pasv, "227 Entering Passive Mode (%d,%d,%d,%d,%d,%d)", &ipPart1,
-			&ipPart2, &ipPart3, &ipPart4, &port1, &port2)) < 0) {
-		printf("ERROR: Cannot process information to calculating port.\n");
-		return 1;
-	}
+	sscanf(pasv, "227 Entering Passive Mode (%d,%d,%d,%d,%d,%d)", &ipPart1,	&ipPart2, &ipPart3, &ipPart4, &port1, &port2);
 
 	// cleaning buffer
 	memset(pasv, 0, sizeof(pasv));
 
 	// forming ip
-	if ((sprintf(pasv, "%d.%d.%d.%d", ipPart1, ipPart2, ipPart3, ipPart4))
-			< 0) {
-		printf("ERROR: Cannot form ip address.\n");
-		return 1;
-	}
+	sprintf(pasv, "%d.%d.%d.%d", ipPart1, ipPart2, ipPart3, ipPart4);
 
 	// calculating new port
 	int portResult = port1 * 256 + port2;
@@ -135,11 +90,7 @@ int ftpPasv(ftp* ftp) {
 	printf("IP: %s\n", pasv);
 	printf("PORT: %d\n", portResult);
 
-	if ((ftp->data_socket_fd = connectSocket(pasv, portResult)) < 0) {
-		printf(
-				"ERROR: Incorrect file descriptor associated to ftp data socket fd.\n");
-		return 1;
-	}
+	ftp->data_socket_fd = connectSocket(pasv, portResult);
 
 	return 0;
 }
@@ -212,10 +163,7 @@ int ftpDisconnect(ftp* ftp) {
 int ftpSend(ftp* ftp, const char* str, size_t size) {
 	int bytes;
 
-	if ((bytes = write(ftp->control_socket_fd, str, size)) <= 0) {
-		printf("WARNING: Nothing was send.\n");
-		return 1;
-	}
+	bytes = write(ftp->control_socket_fd, str, size);
 
 	printf("Bytes send: %d\nInfo: %s\n", bytes, str);
 

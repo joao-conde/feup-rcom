@@ -20,7 +20,8 @@ int main(int argc, char** argv){
 
 
 	if(argc != 2){
-		printf("wrong number of arguments\n");
+		printf("Wrong number of arguments\n");
+		printUsage(*argv);
 		return 1;
 	}
 
@@ -32,7 +33,6 @@ int main(int argc, char** argv){
 
 	//get hostname IP
 	getIpByHost(&url);
-
 
 	//process FTP client
 	ftp ftp;

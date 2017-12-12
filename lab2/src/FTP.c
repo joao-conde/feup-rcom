@@ -23,7 +23,7 @@ int ftpConnect(ftp* ftp, const char* ip, int port) {
 	int socketfd;
 	char rd[1024];
 
-	socketfd = connectSocket(ip, port));
+	socketfd = connectSocket(ip, port);
 
 	ftp->control_socket_fd = socketfd;
 	ftp->data_socket_fd = 0;

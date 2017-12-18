@@ -1,6 +1,10 @@
 #include "URL.h"
 #include "FTP.h"
 
+void printUsage(char* argv0) {
+	printf("\nLogin Usage: %s ftp://[<user>:<password>@]<host>/<url-path>\n",	argv0);
+	printf("Anonymous Usage: %s ftp://<host>/<url-path>\n\n", argv0);
+}
 
 int main(int argc, char** argv){
 
@@ -29,7 +33,11 @@ int main(int argc, char** argv){
 	//url process
 	url url;
 	initURL(&url);
-	parseURL(&url,argv[1]);
+
+	if(parseURL(&url,argv[1]) != 0){
+		perror("Error parsing URL\n");
+		return 1;
+	}
 
 	//get hostname IP
 	getIpByHost(&url);
@@ -38,7 +46,10 @@ int main(int argc, char** argv){
 	ftp ftp;
 
 	//connect
-	ftpConnect(&ftp, url.ip, url.port);
+	if(ftpConnect(&ftp, url.ip, url.port) != 0){
+		perror("Error connecting to FTP\n");
+		return 1;
+	}
 
 	//user and pw
 	const char* user = strlen(url.user) ? url.user : "anonymous";
@@ -57,27 +68,40 @@ int main(int argc, char** argv){
 
 
 	//login
-	ftpLogin(&ftp,user,password);
-
-	//change directory
-	ftpCWD(&ftp,url.path);
+	if(ftpLogin(&ftp,user,password) != 0){
+		perror("Error logging in ftp\n");
+		return 1;
+	}
 
 	//enter passive mode
-	ftpPasv(&ftp);
+	if(ftpPasv(&ftp) != 0){
+		perror("Error entering PASV mode\n");
+		return 1;
+	}
+
+	//change directory
+	if(ftpCWD(&ftp,url.path) != 0){
+		perror("Error changing directory\n");
+		return 1;
+	}
 
 	//begin transmitting
-	ftpRetr(&ftp,url.filename);
+	if(ftpRetr(&ftp,url.filename)!= 0){
+		perror("Error retrieving file\n");
+		return 1;
+	}
 
 	//download filename
-	ftpDownload(&ftp,url.filename);
+	if(ftpDownload(&ftp,url.filename)!= 0){
+		perror("Error downloading file\n");
+		return 1;
+	}
 
 	//disconnect from FTP
-	ftpDisconnect(&ftp);
+	if(ftpDisconnect(&ftp)!= 0){
+		perror("Error disconnecting from ftp\n");
+		return 1;
+	}
 
 	return 0;
-}
-
-void printUsage(char* argv0) {
-	printf("\nLogin Usage: %s ftp://[<user>:<password>@]<host>/<url-path>\n",	argv0);
-	printf("Anonymous Usage: %s ftp://<host>/<url-path>\n\n", argv0);
 }

@@ -8,15 +8,16 @@ CCFLAGS = -g -O3 -Wall
 LDFLAGS = -g
 
 # source files
-SRC = $(wildcard src/*.c)
+SRC = $(wildcard *.c)
 
 OBJ = $(patsubst src%, buildtemp%.o, $(SRC))
 
-OUT = bin/ftpdownloader
+OUT = bin/datatransmission
 
 .SUFFIXES: .c
 
 default: $(OUT)
+
 
 buildtemp/%.o: src/%
 	mkdir -p buildtemp
